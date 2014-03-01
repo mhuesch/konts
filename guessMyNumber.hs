@@ -34,7 +34,7 @@ guessManager msg = do
         lift $ modify (\ gs -> gs { upperBound = min guess (upperBound gs) })
         (GuessState lB uB _) <- lift get
         guessManager $ formatResponse "high" lB uB
-      EQ -> liftM guessCount $ lift get
+      EQ -> return num
       LT -> do
         lift $ modify (\ gs -> gs { lowerBound = max guess (lowerBound gs) })
         (GuessState lB uB _) <- lift get
@@ -48,11 +48,11 @@ main :: IO ()
 main = do
     putStrLn "hi"
     number <- randomIO
-    finalGS <- handle number $ runGuessee startGS number (guessManager "")
-    putStrLn . show $ finalGS
+    (num,count) <- handle number $ runGuessee startGS number (guessManager "")
+    putStrLn $ "The number was: " ++ show num ++ ", it took " ++ show count ++ " guesses to get it"
 
   where
-    handle _ (Result _,gS) = return gS
+    handle _ (Result num,gS) = return (num, guessCount gS)
     handle number (Yield msg k,gS) = do
       putStrLn msg
       putStrLn "What is your response? (number please)"

@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, UndecidableInstances #-}
 -- | A co-routine monad.
 module Coroutine (
         CoroutineT(runCoroutineT),
@@ -34,7 +34,7 @@ instance Monad m => Monad (CoroutineT i o m) where
     f >>= g = CoroutineT $ do
         res1 <- runCoroutineT f
         case res1 of
-            Yield o c -> return $ Yield o (\i -> c i >>= g)
+            Yield o c -> return $ Yield o (c >=> g)
             Result a  -> runCoroutineT (g a)
     -- Pass fail to next monad in the stack
     fail err = CoroutineT $ fail err
@@ -48,15 +48,13 @@ instance MonadIO m => MonadIO (CoroutineT i o m) where
     liftIO m = CoroutineT $ do
         r <- liftIO m
         return $ Result r
-{-
--- Instances for other mtl transformers
+
 instance MonadState s m => MonadState s (CoroutineT i o m) where
-    get = lift . get
+    get = lift get
     put = lift . put
     state = lift . state
-    -}
 
 -- | Suspend processing, returning a @o@ value and a continuation to the caller
 yield :: Monad m => o -> CoroutineT i o m i
-yield o = CoroutineT $ return $ Yield o (\i -> CoroutineT $ return $ Result i)
+yield o = CoroutineT $ return $ Yield o (CoroutineT . return . Result)
 

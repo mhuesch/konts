@@ -13,17 +13,21 @@ coroutine crt = do
     modify (const crt :)
 
 startCrt :: [() -> VoidCrt] -> VoidCrt -> IO ()
-startCrt suspendedList crt = do
-    (res, createdCrts) <- runStateT (runCoroutineT (runCrt crt)) suspendedList
-    case res of
-      (Result v) -> do
-        case createdCrts of
-          [] -> return ()
-          (c:cs) -> startCrt cs (c ())
-      (Yield o k) -> do
-        case createdCrts of
-          [] -> startCrt createdCrts (VoidCrt $ k ())
-          (c:cs) -> startCrt (cs ++ [VoidCrt . k]) (c ())
+startCrt suspendedList crt = liftM fst $ runStateT (pipeState crt) suspendedList
+  where
+    pipeState crt = do
+      res <- runCoroutineT (runCrt crt)
+      createdCrts <- get
+      case (res,createdCrts) of
+        (Result v, []) -> return ()
+        (Yield o k, []) -> pipeState (VoidCrt $ k ())
+        (Result v, (c:cs)) -> do
+          put cs
+          pipeState (c ())
+        (Yield o k, (c:cs)) -> do
+          put (cs ++ [VoidCrt . k])
+          pipeState (c ())
+
 
 ex :: VoidCrt
 ex = VoidCrt $ do

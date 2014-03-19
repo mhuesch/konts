@@ -18,31 +18,31 @@ startCrt suspendedList crt = liftM fst $ runStateT (pipeState crt) suspendedList
     pipeState crt = do
       res <- runCoroutineT (runCrt crt)
       createdCrts <- get
-      case (res,createdCrts) of
-        (Result v, []) -> return ()
-        (Yield o k, []) -> pipeState (VoidCrt $ k ())
-        (Result v, (c:cs)) -> do
-          put cs
-          pipeState (c ())
-        (Yield o k, (c:cs)) -> do
-          put (cs ++ [VoidCrt . k])
+      case createdCrts of
+        [] -> case res of
+          Result v -> return ()
+          Yield o k -> pipeState (VoidCrt $ k ())
+        (c:cs) -> do
+          case res of
+            Result v -> put cs
+            Yield o k -> put (cs ++ [VoidCrt . k])
           pipeState (c ())
 
 
 ex :: VoidCrt
 ex = VoidCrt $ do
     coroutine ex2
-    liftIO $ putStrLn "1"
+    printOut "1"
     yield ()
-    liftIO $ putStrLn "3"
+    printOut "3"
     yield ()
 
 ex2 :: VoidCrt
 ex2 = VoidCrt $ do
-    liftIO $ putStrLn "2"
+    printOut "2"
     coroutine ex3
     yield ()
-    liftIO $ putStrLn "4"
+    printOut "4"
     yield ()
 
 ex3 :: VoidCrt
@@ -57,6 +57,7 @@ ex3 = VoidCrt $ do
   yield ()
   return ()
 
+printOut :: String -> CoroutineT () () (StateT [() -> VoidCrt] IO) ()
 printOut = liftIO . putStrLn
 
 main :: IO ()
